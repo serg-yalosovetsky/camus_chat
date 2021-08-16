@@ -1,6 +1,7 @@
 const path = require('path');
 
 module.exports = {
+  // plugins: ['no-minify'],
   entry: {
     'index': path.resolve(__dirname, 'js/index.tsx'),
   },
@@ -10,6 +11,9 @@ module.exports = {
   },
   resolve: {
     extensions: ['.tsx', '.ts', '.jsx', '.js'],
+  },
+  optimization: {
+    minimize: false
   },
   module: {
     rules: [
