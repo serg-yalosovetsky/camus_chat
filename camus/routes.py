@@ -138,7 +138,7 @@ async def chat(room_id):
     client = room.authenticate()
     if not client:
         status_code = 200
-        password = request_.get('password')
+        password = request.args.get('password')
         client = room.authenticate(password)
 
     if client:
