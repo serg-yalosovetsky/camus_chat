@@ -1,9 +1,10 @@
 import asyncio
 import logging
+import json 
 
 import sqlalchemy
 from quart import (Blueprint, copy_current_websocket_context, flash, redirect,
-                   render_template, session, websocket)
+                   render_template, session, websocket, request, jsonify)
 
 from camus import db, message_handler
 from camus.forms import CreateRoomForm, JoinRoomForm
@@ -46,14 +47,18 @@ async def index():
 
 @bp.route('/create_room', methods=['POST'])
 async def new_room():
-    input_data = json.loads(request.get_json())
+    request_ =  request.args
+    print(request_)
+    # input_data = json.loads(request_)
 
     # if create_room_form.validate_on_submit():
     # form = create_room_form
-    name = form.room_name.data
-    password = form.password.data
-    is_public = form.public.data
-    guest_limit = form.guest_limit.data
+    name = request_.get('room_name')
+    password = request_.get('password')
+    is_public = request_.get('public')
+    if is_public:
+        is_public = True
+    guest_limit = request_.get('guest_limit')
 
     try:
         room = Room(guest_limit=guest_limit, is_public=is_public)
@@ -68,7 +73,7 @@ async def new_room():
         return jsonify(out_data)
         # return redirect('/room/{}'.format(room.slug), code=307)
     except sqlalchemy.exc.IntegrityError:
-        await jsonify(f'The room name "{name}" is not available')
+        return jsonify(f'The room name "{name}" is not available')
 
 
 
@@ -133,10 +138,8 @@ async def chat(room_id):
     client = room.authenticate()
     if not client:
         status_code = 200
-        form = JoinRoomForm()
-        if form.validate_on_submit():
-            password = form.password.data
-            client = room.authenticate(password)
+        password = request_.get('password')
+        client = room.authenticate(password)
 
     if client:
         db.session.add(client)
@@ -222,11 +225,33 @@ async def public():
         public_rooms=public_rooms)
 
 
-@bp.route('/public_api')
+@bp.route('/public_api', methods=['POST'])
 async def public_api():
     public_rooms = Room.query.filter_by(is_public=True).all()
+    # j = json.dumps(public_rooms)
+    rooms = {}
+    for room in public_rooms:
+        if room.clients:
+            clients = {}
+            for client in room.clients: 
+                clients[client.id] = {
+                    'name': client.name, 'uuid': client.uuid,
+                    'seen': client.seen, 'room_id': client.room_id
+                                     }
+        else:
+            clients = {}
+        
+        room_dict = {
+            'room_name':room.name, 'slug':room.slug, 
+            'guest_limit':room.guest_limit, 'is_public':room.is_public,
+            'is_active':room.active, 'clients': clients
+                    }
+        rooms[room.id] = room_dict
 
-    return jsonify({'public_rooms':public_rooms})
+    return rooms
+
+
+
 
 
 async def ws_send(queue):
